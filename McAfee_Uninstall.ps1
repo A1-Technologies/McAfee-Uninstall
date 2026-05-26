@@ -21,10 +21,10 @@
 .OUTPUTS
     C:\ProgramData\Debloat\McAfeeRemoval.log
 .NOTES
-    Original script by Andrew Taylor - andrewstaylor.com - https://github.com/andrew-s-taylor/public/blob/main/De-Bloat/RemoveBloat.ps1
+    Original script by Andrew Taylor - andrewstaylor.com
     Run as Administrator
 .VERSION
-    1.2.1 - 2026-05-25
+    1.3.0 - 2026-05-25
 #>
 
 ############################################################################################################
@@ -48,7 +48,7 @@ If (!(Test-Path $DebloatFolder)) {
 }
 
 $LogFile = "C:\ProgramData\Debloat\McAfeeRemoval.log"
-Start-Transcript -Path $LogFile
+Start-Transcript -Path $LogFile -Append
 
 ############################################################################################################
 #                                         Logging Helper                                                   #
@@ -59,8 +59,43 @@ function Write-Log {
     Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $Message"
 }
 
+############################################################################################################
+#                                    Start-ProcessWithTimeout Helper                                       #
+############################################################################################################
+
+# Runs a process and kills it if it exceeds $TimeoutSeconds.
+# Returns the exit code, or -1 if timed out.
+function Start-ProcessWithTimeout {
+    param(
+        [string]$FilePath,
+        [string]$ArgumentList = "",
+        [int]$TimeoutSeconds  = 120
+    )
+
+    try {
+        $psi                        = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName               = $FilePath
+        $psi.Arguments              = $ArgumentList
+        $psi.UseShellExecute        = $false
+        $psi.RedirectStandardOutput = $false
+        $psi.RedirectStandardError  = $false
+
+        $proc = [System.Diagnostics.Process]::Start($psi)
+
+        if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
+            Write-Log "WARNING: Process '$FilePath' exceeded timeout of ${TimeoutSeconds}s — killing."
+            $proc.Kill()
+            return -1
+        }
+        return $proc.ExitCode
+    } catch {
+        Write-Log "WARNING: Start-ProcessWithTimeout failed for '$FilePath' — $_"
+        return -1
+    }
+}
+
 Write-Log "======================================================"
-Write-Log "  McAfee Removal Script v1.2.1"
+Write-Log "  McAfee Removal Script v1.3.0"
 Write-Log "  Run on: $($env:COMPUTERNAME) by: $($env:USERNAME)"
 Write-Log "======================================================"
 
@@ -172,8 +207,10 @@ if ($mcafeeinstalled) {
             Expand-Archive $dest1 -DestinationPath "C:\ProgramData\Debloat" -Force
 
             Write-Log "Running McAfee Removal Tool (mcafeeclean)..."
-            Start-Process "C:\ProgramData\Debloat\Mccleanup.exe" -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUEFWDRIVER,Redir,MSHR,WPS,MSSPlus -v -s" -Wait
-            Write-Log "McAfee Removal Tool (mcafeeclean) finished. Exit code: $LASTEXITCODE"
+            $proc1 = Start-Process "C:\ProgramData\Debloat\Mccleanup.exe" `
+                -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUEFWDRIVER,Redir,MSHR,WPS,MSSPlus -v -s" `
+                -PassThru -Wait
+            Write-Log "McAfee Removal Tool (mcafeeclean) finished. Exit code: $($proc1.ExitCode)"
         }
     }
 
@@ -197,8 +234,10 @@ if ($mcafeeinstalled) {
             Expand-Archive $dest2 -DestinationPath $newPath -Force
 
             Write-Log "Running McAfee Removal Tool (mccleanup - newer)..."
-            Start-Process "$newPath\Mccleanup.exe" -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUE -v -s" -Wait
-            Write-Log "McAfee Removal Tool (mccleanup - newer) finished. Exit code: $LASTEXITCODE"
+            $proc2 = Start-Process "$newPath\Mccleanup.exe" `
+                -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUE -v -s" `
+                -PassThru -Wait
+            Write-Log "McAfee Removal Tool (mccleanup - newer) finished. Exit code: $($proc2.ExitCode)"
         }
     }
 
@@ -209,6 +248,16 @@ if ($mcafeeinstalled) {
     Write-Log "Uninstalling remaining McAfee Win32 apps via registry uninstall strings..."
     $InstalledPrograms = $allstring | Where-Object { ($_.Name -like "*McAfee*") -and ($_.Name -notlike "*WebAdvisor*") }
 
+    # Patterns that indicate a non-standard/JS bootstrap uninstaller that will hang — skip these
+    # as MCCleanup has already handled the underlying product
+    $skipPatterns = @(
+        "engine\.js",
+        "McAfeeActiveProtection",
+        "WPSUpdate",
+        "ClientAnalytics",
+        "bootstrap"
+    )
+
     $InstalledPrograms | ForEach-Object {
         $entryName        = $_.Name
         $uninstallcommand = $_.String
@@ -218,6 +267,14 @@ if ($mcafeeinstalled) {
             return
         }
 
+        # Skip known hanging bootstrap/JS-engine uninstallers
+        foreach ($pattern in $skipPatterns) {
+            if ($uninstallcommand -match $pattern) {
+                Write-Log "SKIPPED [$entryName]: uninstall string matches known hanging pattern '$pattern'. MCCleanup already handled this."
+                return
+            }
+        }
+
         Write-Log "Attempting to uninstall: [$entryName]..."
 
         try {
@@ -225,7 +282,8 @@ if ($mcafeeinstalled) {
                 $msiArgs = $uninstallcommand -replace "msiexec\.exe", "" -replace "msiexec", ""
                 $msiArgs = $msiArgs -replace "/I", "/X"
                 $msiArgs += " /quiet /norestart"
-                Start-Process "msiexec.exe" -ArgumentList $msiArgs -NoNewWindow -Wait
+                $procMsi = Start-Process "msiexec.exe" -ArgumentList $msiArgs -PassThru -Wait
+                Write-Log "Successfully uninstalled: [$entryName] Exit code: $($procMsi.ExitCode)"
             } else {
                 # Split exe and arguments — handles quoted and unquoted paths
                 if ($uninstallcommand -match '^"([^"]+)"\s*(.*)$') {
@@ -245,13 +303,14 @@ if ($mcafeeinstalled) {
                     return
                 }
 
-                if ($argList) {
-                    Start-Process -FilePath $exe -ArgumentList $argList -NoNewWindow -Wait
+                # Run with a 120s timeout to prevent hanging the script
+                $exitCode = Start-ProcessWithTimeout -FilePath $exe -ArgumentList $argList -TimeoutSeconds 120
+                if ($exitCode -eq -1) {
+                    Write-Log "WARNING: [$entryName] timed out and was killed. MCCleanup may have already removed it."
                 } else {
-                    Start-Process -FilePath $exe -NoNewWindow -Wait
+                    Write-Log "Successfully uninstalled: [$entryName] Exit code: $exitCode"
                 }
             }
-            Write-Log "Successfully uninstalled: [$entryName]"
         }
         catch {
             Write-Log "WARNING: Failed to uninstall: [$entryName] — $_"
@@ -297,8 +356,10 @@ if ($mcafeeinstalled) {
     Write-Log "Removing McAfee WebAdvisor / SiteAdvisor..."
 
     if (Test-Path "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe") {
-        Start-Process -FilePath "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe" -ArgumentList "/s" -WorkingDirectory "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor" -Wait -NoNewWindow
-        Write-Log "SiteAdvisor uninstaller run."
+        $procSA = Start-Process -FilePath "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe" `
+            -ArgumentList "/s" -WorkingDirectory "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor" `
+            -PassThru -Wait
+        Write-Log "SiteAdvisor uninstaller finished. Exit code: $($procSA.ExitCode)"
     }
 
     Start-Sleep -Seconds 5
