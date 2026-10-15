@@ -87,6 +87,7 @@ function Start-ProcessWithTimeout {
             $proc.Kill()
             return -1
         }
+
         return $proc.ExitCode
     } catch {
         Write-Log "WARNING: Start-ProcessWithTimeout failed for '$FilePath' — $_"
@@ -113,6 +114,7 @@ $registryPaths = @(
 
 foreach ($path in $registryPaths) {
     $apps = Get-ChildItem -Path $path | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString
+
     foreach ($app in $apps) {
 
         # Skip entries missing a name or uninstall string
@@ -121,12 +123,14 @@ foreach ($path in $registryPaths) {
         }
 
         $string1 = $app.UninstallString.Trim()
+
         if ($string1 -match "^\s*(C:\\Windows\\System32\\)?msiexec(\.exe)?\s+\S*") {
             $string2 = $string1 + " /quiet /norestart"
             $string2 = $string2 -replace "/I", "/X "
         } else {
             $string2 = $string1
         }
+
         $allstring += New-Object -TypeName PSObject -Property @{
             Name   = $app.DisplayName
             String = $string2
@@ -152,6 +156,7 @@ foreach ($app in $McAfeeAppX) {
         Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app | Remove-AppxProvisionedPackage -Online
         Write-Log "Removed provisioned AppX: $app"
     }
+
     if (Get-AppxPackage -AllUsers -Name $app) {
         Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers
         Write-Log "Removed AppX package: $app"
@@ -159,7 +164,9 @@ foreach ($app in $McAfeeAppX) {
 }
 
 # Belt-and-braces removal of WPS sparse package by exact display name
-Get-AppxProvisionedPackage -Online | Where-Object DisplayName -eq "McAfeeWPSSparsePackage" | Remove-AppxProvisionedPackage -Online -AllUsers
+Get-AppxProvisionedPackage -Online |
+    Where-Object DisplayName -eq "McAfeeWPSSparsePackage" |
+    Remove-AppxProvisionedPackage -Online -AllUsers
 
 ############################################################################################################
 #                                  Detect McAfee Installation                                              #
@@ -170,12 +177,16 @@ $mcafeeinstalled = $false
 
 $InstalledSoftware = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall"
 foreach ($obj in $InstalledSoftware) {
-    if ($obj.GetValue('DisplayName') -like "*McAfee*") { $mcafeeinstalled = $true }
+    if ($obj.GetValue('DisplayName') -like "*McAfee*") {
+        $mcafeeinstalled = $true
+    }
 }
 
 $InstalledSoftware32 = Get-ChildItem "HKLM:\Software\WOW6432NODE\Microsoft\Windows\CurrentVersion\Uninstall"
 foreach ($obj32 in $InstalledSoftware32) {
-    if ($obj32.GetValue('DisplayName') -like "*McAfee*") { $mcafeeinstalled = $true }
+    if ($obj32.GetValue('DisplayName') -like "*McAfee*") {
+        $mcafeeinstalled = $true
+    }
 }
 
 ############################################################################################################
@@ -200,6 +211,7 @@ if ($mcafeeinstalled) {
         Write-Log "WARNING: Download failed or file is empty for $url1. Skipping Tool 1."
     } else {
         $hash1 = (Get-FileHash -Path $dest1 -Algorithm SHA256).Hash
+
         if ($hash1 -ne $expectedHash1) {
             Write-Log "ERROR: Hash mismatch for mcafee.zip! Expected: $expectedHash1 | Got: $hash1 — Skipping Tool 1 for safety."
         } else {
@@ -210,6 +222,7 @@ if ($mcafeeinstalled) {
             $proc1 = Start-Process "C:\ProgramData\Debloat\Mccleanup.exe" `
                 -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUEFWDRIVER,Redir,MSHR,WPS,MSSPlus -v -s" `
                 -PassThru -Wait
+
             Write-Log "McAfee Removal Tool (mcafeeclean) finished. Exit code: $($proc1.ExitCode)"
         }
     }
@@ -225,6 +238,7 @@ if ($mcafeeinstalled) {
         Write-Log "WARNING: Download failed or file is empty for $url2. Skipping Tool 2."
     } else {
         $hash2 = (Get-FileHash -Path $dest2 -Algorithm SHA256).Hash
+
         if ($hash2 -ne $expectedHash2) {
             Write-Log "ERROR: Hash mismatch for mcafeenew.zip! Expected: $expectedHash2 | Got: $hash2 — Skipping Tool 2 for safety."
         } else {
@@ -237,6 +251,7 @@ if ($mcafeeinstalled) {
             $proc2 = Start-Process "$newPath\Mccleanup.exe" `
                 -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUE -v -s" `
                 -PassThru -Wait
+
             Write-Log "McAfee Removal Tool (mccleanup - newer) finished. Exit code: $($proc2.ExitCode)"
         }
     }
@@ -246,7 +261,9 @@ if ($mcafeeinstalled) {
     ############################################################################################################
 
     Write-Log "Uninstalling remaining McAfee Win32 apps via registry uninstall strings..."
-    $InstalledPrograms = $allstring | Where-Object { ($_.Name -like "*McAfee*") -and ($_.Name -notlike "*WebAdvisor*") }
+    $InstalledPrograms = $allstring | Where-Object {
+        ($_.Name -like "*McAfee*") -and ($_.Name -notlike "*WebAdvisor*")
+    }
 
     # Patterns that indicate a non-standard/JS bootstrap uninstaller that will hang — skip these
     # as MCCleanup has already handled the underlying product
@@ -282,6 +299,7 @@ if ($mcafeeinstalled) {
                 $msiArgs = $uninstallcommand -replace "msiexec\.exe", "" -replace "msiexec", ""
                 $msiArgs = $msiArgs -replace "/I", "/X"
                 $msiArgs += " /quiet /norestart"
+
                 $procMsi = Start-Process "msiexec.exe" -ArgumentList $msiArgs -PassThru -Wait
                 Write-Log "Successfully uninstalled: [$entryName] Exit code: $($procMsi.ExitCode)"
             } else {
@@ -305,14 +323,14 @@ if ($mcafeeinstalled) {
 
                 # Run with a 120s timeout to prevent hanging the script
                 $exitCode = Start-ProcessWithTimeout -FilePath $exe -ArgumentList $argList -TimeoutSeconds 120
+
                 if ($exitCode -eq -1) {
                     Write-Log "WARNING: [$entryName] timed out and was killed. MCCleanup may have already removed it."
                 } else {
                     Write-Log "Successfully uninstalled: [$entryName] Exit code: $exitCode"
                 }
             }
-        }
-        catch {
+        } catch {
             Write-Log "WARNING: Failed to uninstall: [$entryName] — $_"
         }
     }
@@ -322,6 +340,7 @@ if ($mcafeeinstalled) {
     ############################################################################################################
 
     Write-Log "Removing McAfee Safe Connect..."
+
     $safeconnects = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall |
         Get-ItemProperty |
         Where-Object { $_.DisplayName -match "McAfee Safe Connect" } |
@@ -349,6 +368,38 @@ if ($mcafeeinstalled) {
         Write-Log "Removed McAfee.WPS registry key."
     }
 
+    # Remove only McAfee WebAdvisor / SiteAdvisor uninstall entries.
+    # Both "McAfee" and "WebAdvisor" or "SiteAdvisor" must appear in the DisplayName,
+    # preventing deletion of similarly named products from other vendors.
+    Write-Log "Removing McAfee WebAdvisor / SiteAdvisor uninstall registry entries..."
+
+    $uninstallHives = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+
+    foreach ($hive in $uninstallHives) {
+        if (-not (Test-Path -Path $hive)) {
+            continue
+        }
+
+        Get-ChildItem -Path $hive | ForEach-Object {
+            $entry = Get-ItemProperty -Path $_.PSPath
+
+            if (
+                -not [string]::IsNullOrWhiteSpace($entry.DisplayName) -and
+                $entry.DisplayName -match '(?i)(?=.*McAfee)(?=.*(?:WebAdvisor|SiteAdvisor))'
+            ) {
+                try {
+                    Remove-Item -Path $_.PSPath -Recurse -Force
+                    Write-Log "Removed McAfee WebAdvisor/SiteAdvisor uninstall entry: '$($entry.DisplayName)' from '$($_.PSPath)'"
+                } catch {
+                    Write-Log "WARNING: Could not remove McAfee WebAdvisor/SiteAdvisor uninstall entry '$($entry.DisplayName)' — $_"
+                }
+            }
+        }
+    }
+
     ############################################################################################################
     #                                      Remove McAfee WebAdvisor / SiteAdvisor                              #
     ############################################################################################################
@@ -357,8 +408,10 @@ if ($mcafeeinstalled) {
 
     if (Test-Path "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe") {
         $procSA = Start-Process -FilePath "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe" `
-            -ArgumentList "/s" -WorkingDirectory "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor" `
+            -ArgumentList "/s" `
+            -WorkingDirectory "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor" `
             -PassThru -Wait
+
         Write-Log "SiteAdvisor uninstaller finished. Exit code: $($procSA.ExitCode)"
     }
 
@@ -393,7 +446,9 @@ if ($mcafeeinstalled) {
     ############################################################################################################
 
     Write-Log "Removing McAfee scheduled tasks..."
+
     $mcafeeTasks = Get-ScheduledTask | Where-Object { $_.TaskName -like "*McAfee*" }
+
     if ($mcafeeTasks) {
         foreach ($task in $mcafeeTasks) {
             try {
@@ -412,7 +467,9 @@ if ($mcafeeinstalled) {
     ############################################################################################################
 
     Write-Log "Removing McAfee services..."
+
     $mcafeeServices = Get-Service | Where-Object { $_.DisplayName -like "*McAfee*" }
+
     if ($mcafeeServices) {
         foreach ($svc in $mcafeeServices) {
             try {
@@ -421,6 +478,7 @@ if ($mcafeeinstalled) {
             } catch {
                 Write-Log "WARNING: Could not stop service: $($svc.Name) — $_"
             }
+
             try {
                 sc.exe delete $svc.Name | Out-Null
                 Write-Log "Deleted service: $($svc.Name)"
@@ -505,10 +563,16 @@ if ($mcafeeinstalled) {
 
         # --- Microsoft Edge ---
         $edgeExtPath = Join-Path $profile.FullName "AppData\Local\Microsoft\Edge\User Data"
+
         if (Test-Path $edgeExtPath) {
-            $edgeProfiles = @("Default") + (Get-ChildItem $edgeExtPath -Directory -Filter "Profile*" | Select-Object -ExpandProperty Name)
+            $edgeProfiles = @("Default") + (
+                Get-ChildItem $edgeExtPath -Directory -Filter "Profile*" |
+                Select-Object -ExpandProperty Name
+            )
+
             foreach ($ep in $edgeProfiles) {
                 $extFolder = Join-Path $edgeExtPath "$ep\Extensions\$edgeExtensionId"
+
                 if (Test-Path $extFolder) {
                     Remove-Item -Path $extFolder -Recurse -Force
                     Write-Log "Removed Edge McAfee extension for user '$($profile.Name)' profile '$ep'."
@@ -518,10 +582,16 @@ if ($mcafeeinstalled) {
 
         # --- Google Chrome ---
         $chromeExtPath = Join-Path $profile.FullName "AppData\Local\Google\Chrome\User Data"
+
         if (Test-Path $chromeExtPath) {
-            $chromeProfiles = @("Default") + (Get-ChildItem $chromeExtPath -Directory -Filter "Profile*" | Select-Object -ExpandProperty Name)
+            $chromeProfiles = @("Default") + (
+                Get-ChildItem $chromeExtPath -Directory -Filter "Profile*" |
+                Select-Object -ExpandProperty Name
+            )
+
             foreach ($cp in $chromeProfiles) {
                 $extFolder = Join-Path $chromeExtPath "$cp\Extensions\$chromeExtensionId"
+
                 if (Test-Path $extFolder) {
                     Remove-Item -Path $extFolder -Recurse -Force
                     Write-Log "Removed Chrome McAfee extension for user '$($profile.Name)' profile '$cp'."
@@ -537,6 +607,7 @@ if ($mcafeeinstalled) {
     foreach ($policyPath in @($edgePolicyPath, $chromePolicyPath)) {
         if (Test-Path $policyPath) {
             $entries = Get-ItemProperty -Path $policyPath
+
             $entries.PSObject.Properties | Where-Object {
                 $_.Value -like "*$edgeExtensionId*" -or $_.Value -like "*$chromeExtensionId*"
             } | ForEach-Object {
@@ -572,15 +643,20 @@ if ($mcafeeinstalled) {
 
     $registryPaths | ForEach-Object {
         if (Test-Path $_) {
-            Get-ChildItem -Path $_ | Get-ItemProperty | Where-Object { $_.DisplayName -like "*McAfee*" } | ForEach-Object {
-                $remaining += $_.DisplayName
-            }
+            Get-ChildItem -Path $_ |
+                Get-ItemProperty |
+                Where-Object { $_.DisplayName -like "*McAfee*" } |
+                ForEach-Object {
+                    $remaining += $_.DisplayName
+                }
         }
     }
 
     if ($remaining.Count -gt 0) {
         Write-Log "WARNING: The following McAfee entries were still found in the registry after removal:"
-        $remaining | ForEach-Object { Write-Log "  - $_" }
+        $remaining | ForEach-Object {
+            Write-Log "  - $_"
+        }
     } else {
         Write-Log "Verification passed — no McAfee registry entries remain."
     }
@@ -590,8 +666,10 @@ if ($mcafeeinstalled) {
     ############################################################################################################
 
     Write-Log "Checking Windows Defender status..."
+
     try {
         $defenderStatus = Get-MpComputerStatus | Select-Object AntivirusEnabled, RealTimeProtectionEnabled
+
         Write-Log "  AntivirusEnabled         : $($defenderStatus.AntivirusEnabled)"
         Write-Log "  RealTimeProtectionEnabled: $($defenderStatus.RealTimeProtectionEnabled)"
 
@@ -622,6 +700,7 @@ $zipFiles = @(
     'C:\ProgramData\Debloat\mcafee.zip',
     'C:\ProgramData\Debloat\mcafeenew.zip'
 )
+
 foreach ($zip in $zipFiles) {
     if (Test-Path $zip) {
         Remove-Item -Path $zip -Force
@@ -630,10 +709,12 @@ foreach ($zip in $zipFiles) {
 }
 
 # Remove extracted files in $DebloatFolder, excluding the log
-Get-ChildItem -Path $DebloatFolder -File | Where-Object { $_.FullName -ne $LogFile } | ForEach-Object {
-    Remove-Item -Path $_.FullName -Force
-    Write-Log "Removed file: $($_.FullName)"
-}
+Get-ChildItem -Path $DebloatFolder -File |
+    Where-Object { $_.FullName -ne $LogFile } |
+    ForEach-Object {
+        Remove-Item -Path $_.FullName -Force
+        Write-Log "Removed file: $($_.FullName)"
+    }
 
 # Remove all subdirectories
 Get-ChildItem -Path $DebloatFolder -Directory | ForEach-Object {
